@@ -2,7 +2,9 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Scanify — Numériseur de documents</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady()"></script>
@@ -170,15 +172,54 @@
   .crop-info { color: white; font-size: 11px; letter-spacing: 0.08em; text-align: center; opacity: 0.7; }
   .crop-controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
-  /* CAMERA */
+  /* CAMERA — iPhone/Safari safe */
   #camera-modal {
-    display: none; position: fixed; inset: 0;
-    background: rgba(26,26,24,0.92); z-index: 100;
-    align-items: center; justify-content: center; flex-direction: column; gap: 20px;
+    display: none;
+    position: fixed; inset: 0;
+    height: 100%; height: -webkit-fill-available;
+    background: #000; z-index: 100;
+    flex-direction: column;
+    overflow: hidden;
   }
   #camera-modal.open { display: flex; }
-  #camera-video { max-width: min(96vw, 600px); border: 2px solid white; border-radius: 2px; display: block; }
-  .cam-controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+  #camera-video {
+    flex: 1;
+    width: 100%;
+    object-fit: cover;
+    display: block;
+    min-height: 0;
+  }
+
+  .cam-controls {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 16px 20px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    background: rgba(0,0,0,0.85);
+    width: 100%;
+  }
+
+  #btn-snap {
+    width: 72px; height: 72px;
+    border-radius: 50%; font-size: 28px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: white; color: #1a1a18;
+    border: 4px solid rgba(255,255,255,0.35);
+    flex-shrink: 0; letter-spacing: 0; text-transform: none;
+  }
+  #btn-snap:hover, #btn-snap:active { background: #e8e8e8; color: #1a1a18; }
+
+  .cam-btn-small {
+    width: 48px; height: 48px; border-radius: 50%; padding: 0; font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.15); color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    letter-spacing: 0; text-transform: none;
+  }
+  .cam-btn-small:hover { background: rgba(255,255,255,0.28); color: white; }
 
   /* OPTIONS */
   .options-row { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
@@ -364,11 +405,11 @@
 
 <!-- CAMERA MODAL -->
 <div id="camera-modal">
-  <video id="camera-video" autoplay playsinline></video>
+  <video id="camera-video" autoplay playsinline muted></video>
   <div class="cam-controls">
-    <button class="btn accent" id="btn-snap">📸 Capturer</button>
-    <button class="btn" id="btn-switch-cam">🔄 Changer</button>
-    <button class="btn" id="btn-close-cam">✕ Fermer</button>
+    <button class="btn cam-btn-small" id="btn-close-cam" title="Fermer">✕</button>
+    <button class="btn" id="btn-snap" title="Capturer">📸</button>
+    <button class="btn cam-btn-small" id="btn-switch-cam" title="Retourner">🔄</button>
   </div>
   <canvas id="snap-canvas" style="display:none;"></canvas>
 </div>
