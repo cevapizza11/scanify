@@ -5,168 +5,79 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Scanify — Numériseur de documents</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady()"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    --ink: #1a1a18;
-    --paper: #f5f0e8;
-    --cream: #ede7d5;
-    --accent: #c8502a;
-    --accent2: #3a6b4a;
-    --muted: #8a8070;
-    --border: #cfc7b3;
-    --shadow: rgba(26,26,24,0.12);
+    --ink: #1a1a18; --paper: #f5f0e8; --cream: #ede7d5;
+    --accent: #c8502a; --accent2: #3a6b4a; --muted: #8a8070;
+    --border: #cfc7b3; --shadow: rgba(26,26,24,0.12);
   }
-
   body {
     font-family: 'DM Mono', monospace;
-    background: var(--paper);
-    color: var(--ink);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 40px 20px 80px;
+    background: var(--paper); color: var(--ink);
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; padding: 40px 20px 80px;
     background-image:
       radial-gradient(ellipse at 80% 10%, rgba(200,80,42,0.06) 0%, transparent 50%),
-      radial-gradient(ellipse at 20% 90%, rgba(58,107,74,0.06) 0%, transparent 50%),
-      url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='60' height='60' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      radial-gradient(ellipse at 20% 90%, rgba(58,107,74,0.06) 0%, transparent 50%);
   }
+  header { text-align: center; margin-bottom: 48px; }
+  header .eyebrow { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  header h1 { font-family: 'Fraunces', serif; font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 600; line-height: 1.1; }
+  header h1 em { font-style: italic; font-weight: 300; color: var(--accent); }
+  header p { margin-top: 12px; font-size: 12px; color: var(--muted); letter-spacing: 0.05em; }
 
-  header {
-    text-align: center;
-    margin-bottom: 48px;
+  .cv-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
+    background: var(--cream); border: 1px solid var(--border);
+    padding: 4px 12px; border-radius: 20px; color: var(--muted);
+    margin-top: 10px;
   }
-  header .eyebrow {
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 10px;
+  .cv-badge .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #ccc; transition: background 0.3s;
   }
-  header h1 {
-    font-family: 'Fraunces', serif;
-    font-size: clamp(2.2rem, 5vw, 3.4rem);
-    font-weight: 600;
-    line-height: 1.1;
-    color: var(--ink);
-  }
-  header h1 em {
-    font-style: italic;
-    font-weight: 300;
-    color: var(--accent);
-  }
-  header p {
-    margin-top: 12px;
-    font-size: 12px;
-    color: var(--muted);
-    letter-spacing: 0.05em;
-  }
+  .cv-badge.ready .dot { background: var(--accent2); }
+  .cv-badge.loading .dot { background: orange; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-  .container {
-    width: 100%;
-    max-width: 820px;
-    display: flex;
-    flex-direction: column;
-    gap: 28px;
-  }
-
-  .card {
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    padding: 28px 32px;
-    box-shadow: 4px 4px 0 var(--border);
-    position: relative;
-  }
+  .container { width: 100%; max-width: 820px; display: flex; flex-direction: column; gap: 28px; }
+  .card { background: white; border: 1px solid var(--border); border-radius: 3px; padding: 28px 32px; box-shadow: 4px 4px 0 var(--border); }
   .card-label {
-    font-size: 9px;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
   }
-  .card-label::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-  }
-
-  /* STEP BADGES */
+  .card-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
   .step-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px; height: 22px;
-    background: var(--ink);
-    color: var(--paper);
-    font-size: 10px;
-    font-weight: 500;
-    border-radius: 50%;
-    flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; background: var(--ink); color: var(--paper);
+    font-size: 10px; font-weight: 500; border-radius: 50%; flex-shrink: 0;
   }
 
   /* CAPTURE ZONE */
   .capture-zone {
-    border: 2px dashed var(--border);
-    border-radius: 2px;
-    padding: 36px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
-    background: var(--paper);
+    border: 2px dashed var(--border); border-radius: 2px;
+    padding: 36px 20px; text-align: center; cursor: pointer;
+    transition: all 0.2s; position: relative; background: var(--paper);
   }
-  .capture-zone:hover, .capture-zone.drag-over {
-    border-color: var(--accent);
-    background: #fdf7f2;
-  }
-  .capture-zone input[type="file"] {
-    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
-  }
-  .capture-zone .icon {
-    font-size: 32px;
-    margin-bottom: 12px;
-    display: block;
-  }
-  .capture-zone .label {
-    font-size: 11px;
-    color: var(--muted);
-    letter-spacing: 0.06em;
-  }
-  .capture-zone .label strong {
-    color: var(--accent);
-    font-weight: 500;
-  }
+  .capture-zone:hover, .capture-zone.drag-over { border-color: var(--accent); background: #fdf7f2; }
+  .capture-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .capture-zone .icon { font-size: 32px; margin-bottom: 12px; display: block; }
+  .capture-zone .label { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; }
+  .capture-zone .label strong { color: var(--accent); font-weight: 500; }
 
-  /* CAMERA BTN */
-  .btn-row {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 14px;
-  }
+  /* BUTTONS */
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
   .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    padding: 9px 18px;
-    border: 1px solid var(--ink);
-    background: transparent;
-    color: var(--ink);
-    cursor: pointer;
-    border-radius: 2px;
-    transition: all 0.15s;
-    text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 0.08em; padding: 9px 18px;
+    border: 1px solid var(--ink); background: transparent; color: var(--ink);
+    cursor: pointer; border-radius: 2px; transition: all 0.15s; text-transform: uppercase;
   }
   .btn:hover { background: var(--ink); color: var(--paper); }
   .btn.accent { background: var(--accent); border-color: var(--accent); color: white; }
@@ -176,237 +87,154 @@
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn:disabled:hover { background: transparent; color: var(--ink); }
   .btn.accent:disabled:hover { background: var(--accent); color: white; }
+  .btn.success:disabled:hover { background: var(--accent2); color: white; }
 
-  /* PREVIEW GRID */
+  /* SCAN TOGGLE */
+  .scan-toggle {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 14px; padding: 10px 14px;
+    background: var(--cream); border: 1px solid var(--border); border-radius: 2px;
+    font-size: 11px; cursor: pointer; user-select: none;
+    transition: background 0.15s;
+  }
+  .scan-toggle:hover { background: #e6dece; }
+  .toggle-switch {
+    width: 32px; height: 18px; background: var(--border);
+    border-radius: 9px; position: relative; transition: background 0.2s; flex-shrink: 0;
+  }
+  .toggle-switch::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 12px; height: 12px; background: white;
+    border-radius: 50%; transition: transform 0.2s;
+  }
+  .toggle-switch.on { background: var(--accent2); }
+  .toggle-switch.on::after { transform: translateX(14px); }
+  .scan-toggle-label { color: var(--ink); }
+  .scan-toggle-desc { font-size: 10px; color: var(--muted); }
+
+  /* PREVIEW */
   #preview-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 12px;
-    margin-top: 6px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px; margin-top: 6px;
   }
   .preview-item {
-    position: relative;
-    background: var(--cream);
-    border: 1px solid var(--border);
-    border-radius: 2px;
-    overflow: hidden;
-    aspect-ratio: 3/4;
-    cursor: pointer;
+    position: relative; background: var(--cream);
+    border: 1px solid var(--border); border-radius: 2px;
+    overflow: hidden; aspect-ratio: 3/4; cursor: pointer;
     transition: transform 0.15s, box-shadow 0.15s;
     box-shadow: 2px 2px 0 var(--border);
   }
   .preview-item:hover { transform: translate(-1px,-1px); box-shadow: 3px 3px 0 var(--border); }
-  .preview-item img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: block;
-  }
+  .preview-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .preview-item .del-btn {
-    position: absolute;
-    top: 5px; right: 5px;
-    width: 20px; height: 20px;
-    background: var(--accent);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    font-size: 13px;
-    line-height: 1;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    opacity: 0;
-    transition: opacity 0.15s;
+    position: absolute; top: 5px; right: 5px;
+    width: 20px; height: 20px; background: var(--accent);
+    color: white; border: none; border-radius: 50%; font-size: 13px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.15s;
   }
   .preview-item:hover .del-btn { opacity: 1; }
   .preview-item .page-num {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    background: rgba(26,26,24,0.7);
-    color: white;
-    font-size: 9px;
-    letter-spacing: 0.1em;
-    padding: 4px;
-    text-align: center;
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(26,26,24,0.7); color: white;
+    font-size: 9px; letter-spacing: 0.1em; padding: 4px; text-align: center;
   }
+  .preview-item .scan-badge {
+    position: absolute; top: 5px; left: 5px;
+    background: var(--accent2); color: white;
+    font-size: 8px; padding: 2px 5px; border-radius: 2px;
+    letter-spacing: 0.08em;
+  }
+  .preview-item.processing::after {
+    content: '⚙';
+    position: absolute; inset: 0;
+    background: rgba(26,26,24,0.6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: white;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* CAMERA VIEW */
+  /* CROP EDITOR */
+  #crop-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(26,26,24,0.94); z-index: 150;
+    align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+  }
+  #crop-modal.open { display: flex; }
+  .crop-container {
+    position: relative; cursor: crosshair;
+    border: 2px solid white;
+  }
+  #crop-canvas { display: block; max-width: min(94vw, 700px); max-height: 70vh; }
+  .crop-info { color: white; font-size: 11px; letter-spacing: 0.08em; text-align: center; opacity: 0.7; }
+  .crop-controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+  /* CAMERA */
   #camera-modal {
-    display: none;
-    position: fixed; inset: 0;
-    background: rgba(26,26,24,0.88);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 20px;
+    display: none; position: fixed; inset: 0;
+    background: rgba(26,26,24,0.92); z-index: 100;
+    align-items: center; justify-content: center; flex-direction: column; gap: 20px;
   }
   #camera-modal.open { display: flex; }
-  #camera-video {
-    max-width: min(96vw, 600px);
-    border: 2px solid white;
-    border-radius: 2px;
-    display: block;
-  }
-  .cam-controls { display: flex; gap: 12px; }
+  #camera-video { max-width: min(96vw, 600px); border: 2px solid white; border-radius: 2px; display: block; }
+  .cam-controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 
   /* OPTIONS */
-  .options-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    align-items: center;
-  }
-  .option-group {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-  .option-group label {
-    font-size: 9px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
+  .options-row { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+  .option-group { display: flex; flex-direction: column; gap: 5px; }
+  .option-group label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
   .option-group select, .option-group input[type="text"], .option-group input[type="email"] {
-    font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    background: var(--paper);
-    color: var(--ink);
-    border-radius: 2px;
-    outline: none;
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    padding: 8px 12px; border: 1px solid var(--border);
+    background: var(--paper); color: var(--ink); border-radius: 2px; outline: none;
     transition: border-color 0.15s;
   }
-  .option-group select:focus, .option-group input:focus {
-    border-color: var(--accent);
-  }
+  .option-group select:focus, .option-group input:focus { border-color: var(--accent); }
   .option-group input[type="email"] { width: 240px; }
-
-  /* PDF NAME */
-  .pdf-name-field {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex: 1;
-  }
+  .pdf-name-field { display: flex; align-items: center; gap: 10px; flex: 1; }
   .pdf-name-field input {
-    flex: 1;
-    font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    background: var(--paper);
-    color: var(--ink);
-    border-radius: 2px;
-    outline: none;
+    flex: 1; font-family: 'DM Mono', monospace; font-size: 12px;
+    padding: 8px 12px; border: 1px solid var(--border);
+    background: var(--paper); color: var(--ink); border-radius: 2px; outline: none;
     transition: border-color 0.15s;
   }
   .pdf-name-field input:focus { border-color: var(--accent); }
-  .ext-label {
-    color: var(--muted);
-    font-size: 11px;
-  }
+  .ext-label { color: var(--muted); font-size: 11px; }
 
   /* STATUS */
   #status-bar {
-    display: none;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 18px;
-    border-radius: 2px;
-    font-size: 11px;
-    letter-spacing: 0.05em;
-    border: 1px solid;
+    display: none; align-items: center; gap: 10px;
+    padding: 12px 18px; border-radius: 2px; font-size: 11px;
+    letter-spacing: 0.05em; border: 1px solid; margin-top: 14px;
   }
   #status-bar.info { background: #eef4f0; border-color: var(--accent2); color: var(--accent2); display: flex; }
   #status-bar.error { background: #fdf0ec; border-color: var(--accent); color: var(--accent); display: flex; }
   #status-bar.success { background: #eef4f0; border-color: var(--accent2); color: var(--accent2); display: flex; }
+  .spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
 
-  .spinner {
-    width: 14px; height: 14px;
-    border: 2px solid currentColor;
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    flex-shrink: 0;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  /* PROGRESS */
+  .progress-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 8px; display: none; }
+  .progress-bar-wrap.visible { display: block; }
+  .progress-bar { height: 100%; background: var(--accent2); transition: width 0.3s; }
 
-  /* COUNTER */
-  .page-counter {
-    font-size: 10px;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    margin-top: 8px;
-  }
-
-  /* DRAG SORT HINT */
-  .drag-hint {
-    font-size: 9px;
-    color: var(--muted);
-    letter-spacing: 0.08em;
-    margin-top: 4px;
-  }
-
-  /* EMAIL SECTION */
-  .email-row {
-    display: flex;
-    gap: 12px;
-    align-items: flex-end;
-    flex-wrap: wrap;
-  }
+  /* EMAIL */
+  .email-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
 
   /* LIGHTBOX */
-  #lightbox {
-    display: none;
-    position: fixed; inset: 0;
-    background: rgba(26,26,24,0.92);
-    z-index: 200;
-    align-items: center;
-    justify-content: center;
-  }
+  #lightbox { display: none; position: fixed; inset: 0; background: rgba(26,26,24,0.92); z-index: 200; align-items: center; justify-content: center; }
   #lightbox.open { display: flex; }
-  #lightbox img {
-    max-width: 90vw;
-    max-height: 90vh;
-    border: 2px solid white;
-  }
-  #lightbox .close-lb {
-    position: absolute; top: 20px; right: 24px;
-    color: white; font-size: 28px; cursor: pointer;
-    background: none; border: none; line-height: 1;
-  }
+  #lightbox img { max-width: 90vw; max-height: 90vh; border: 2px solid white; }
+  #lightbox .close-lb { position: absolute; top: 20px; right: 24px; color: white; font-size: 28px; cursor: pointer; background: none; border: none; }
 
-  /* FOOTER */
-  footer {
-    margin-top: 60px;
-    font-size: 9px;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
+  .page-counter { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; margin-top: 8px; }
+  .drag-hint { font-size: 9px; color: var(--muted); letter-spacing: 0.08em; margin-top: 4px; }
 
-  /* PROGRESS BAR */
-  .progress-bar-wrap {
-    height: 3px;
-    background: var(--border);
-    border-radius: 2px;
-    overflow: hidden;
-    margin-top: 8px;
-    display: none;
-  }
-  .progress-bar-wrap.visible { display: block; }
-  .progress-bar {
-    height: 100%;
-    background: var(--accent2);
-    transition: width 0.3s;
-  }
+  footer { margin-top: 60px; font-size: 9px; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; }
 
   @media (max-width: 600px) {
-    .options-row { flex-direction: column; align-items: stretch; }
+    .options-row, .email-row, .btn-row { flex-direction: column; align-items: stretch; }
     .option-group input[type="email"] { width: 100%; }
-    .email-row { flex-direction: column; }
-    .btn-row { flex-direction: column; }
   }
 </style>
 </head>
@@ -415,20 +243,31 @@
 <header>
   <div class="eyebrow">— Outil de numérisation —</div>
   <h1>Scan<em>ify</em></h1>
-  <p>Capturez · Assemblez · Exportez en PDF · Envoyez par mail</p>
+  <p>Capturez · Recadrez automatiquement · Exportez en PDF · Envoyez par mail</p>
+  <div class="cv-badge loading" id="cv-badge">
+    <div class="dot"></div>
+    <span id="cv-status">Chargement du moteur de recadrage…</span>
+  </div>
 </header>
 
 <div class="container">
 
-  <!-- STEP 1 : CAPTURE -->
+  <!-- STEP 1 -->
   <div class="card">
     <div class="card-label"><span class="step-badge">1</span> Ajouter des pages</div>
-
     <div class="capture-zone" id="drop-zone">
       <input type="file" id="file-input" accept="image/*" multiple>
       <span class="icon">📄</span>
-      <div class="label"><strong>Cliquez</strong> ou glissez des images ici<br>JPG, PNG, WEBP, HEIC…</div>
+      <div class="label"><strong>Cliquez</strong> ou glissez des images ici<br>JPG, PNG, WEBP…</div>
     </div>
+
+    <label class="scan-toggle" id="scan-toggle">
+      <div class="toggle-switch on" id="toggle-sw"></div>
+      <div>
+        <div class="scan-toggle-label">Recadrage automatique activé</div>
+        <div class="scan-toggle-desc">Détecte et redresse le document automatiquement</div>
+      </div>
+    </label>
 
     <div class="btn-row">
       <button class="btn accent" id="btn-camera">📷 Utiliser la caméra</button>
@@ -437,12 +276,12 @@
 
     <div id="preview-section" style="display:none; margin-top:20px;">
       <div class="page-counter" id="page-counter"></div>
-      <div class="drag-hint">↕ Faites glisser les pages pour les réordonner</div>
+      <div class="drag-hint">↕ Glissez les pages pour les réordonner · Cliquez pour agrandir</div>
       <div id="preview-grid"></div>
     </div>
   </div>
 
-  <!-- STEP 2 : OPTIONS PDF -->
+  <!-- STEP 2 -->
   <div class="card">
     <div class="card-label"><span class="step-badge">2</span> Options du PDF</div>
     <div class="options-row">
@@ -471,25 +310,25 @@
       <div class="option-group">
         <label>Qualité image</label>
         <select id="pdf-quality">
-          <option value="0.92">Haute</option>
-          <option value="0.75" selected>Moyenne</option>
-          <option value="0.5">Légère</option>
+          <option value="0.95">Haute</option>
+          <option value="0.80" selected>Moyenne</option>
+          <option value="0.55">Légère</option>
         </select>
       </div>
     </div>
     <div class="btn-row" style="margin-top:20px;">
-      <button class="btn accent" id="btn-generate" disabled>⬇ Générer & télécharger le PDF</button>
+      <button class="btn accent" id="btn-generate" disabled>⬇ Générer &amp; télécharger le PDF</button>
     </div>
     <div class="progress-bar-wrap" id="progress-wrap">
       <div class="progress-bar" id="progress-bar" style="width:0%"></div>
     </div>
   </div>
 
-  <!-- STEP 3 : ENVOI EMAIL -->
+  <!-- STEP 3 -->
   <div class="card">
     <div class="card-label"><span class="step-badge">3</span> Envoyer par email</div>
     <p style="font-size:11px; color:var(--muted); margin-bottom:16px; line-height:1.7;">
-      Saisissez votre adresse email. Le PDF sera joint automatiquement via votre client mail ou envoyé via EmailJS si configuré.
+      Saisissez votre adresse. Le PDF sera téléchargé et votre client mail s'ouvrira avec l'objet pré-rempli.
     </p>
     <div class="email-row">
       <div class="option-group" style="flex:1;">
@@ -510,12 +349,25 @@
 
 </div>
 
+<!-- CROP MODAL (ajustement manuel des coins) -->
+<div id="crop-modal">
+  <div class="crop-info" id="crop-info">Ajustez les coins si nécessaire — glissez les poignées bleues</div>
+  <div class="crop-container">
+    <canvas id="crop-canvas"></canvas>
+  </div>
+  <div class="crop-controls">
+    <button class="btn accent" id="btn-crop-confirm">✔ Confirmer le recadrage</button>
+    <button class="btn" id="btn-crop-auto">↺ Recadrage auto</button>
+    <button class="btn" id="btn-crop-cancel">✕ Annuler</button>
+  </div>
+</div>
+
 <!-- CAMERA MODAL -->
 <div id="camera-modal">
   <video id="camera-video" autoplay playsinline></video>
   <div class="cam-controls">
     <button class="btn accent" id="btn-snap">📸 Capturer</button>
-    <button class="btn" id="btn-switch-cam">🔄 Changer de caméra</button>
+    <button class="btn" id="btn-switch-cam">🔄 Changer</button>
     <button class="btn" id="btn-close-cam">✕ Fermer</button>
   </div>
   <canvas id="snap-canvas" style="display:none;"></canvas>
@@ -532,66 +384,439 @@
 <script>
 const { jsPDF } = window.jspdf;
 
-let pages = []; // Array of { dataUrl, name }
+// ─── STATE ───
+let pages = [];
 let cameraStream = null;
 let currentFacingMode = 'environment';
 let dragSrcIndex = null;
 let generatedPdfBlob = null;
 let generatedPdfName = '';
+let autoScanEnabled = true;
+let cvReady = false;
 
-// ─── DOM refs ───
-const fileInput = document.getElementById('file-input');
-const dropZone = document.getElementById('drop-zone');
+// Crop editor state
+let cropPageIndex = -1;       // index de la page en cours d'édition
+let cropOriginalDataUrl = '';
+let cropCorners = [];         // [{x,y}, ...] 4 coins dans l'ordre TL,TR,BR,BL
+let dragCornerIdx = -1;
+let cropImg = null;
+let cropScale = 1;
+
+// ─── OPENCV READY ───
+function onOpenCvReady() {
+  cvReady = true;
+  const badge = document.getElementById('cv-badge');
+  badge.classList.remove('loading');
+  badge.classList.add('ready');
+  document.getElementById('cv-status').textContent = 'Moteur de recadrage prêt';
+}
+
+// ─── DOM ───
+const fileInput   = document.getElementById('file-input');
+const dropZone    = document.getElementById('drop-zone');
 const previewGrid = document.getElementById('preview-grid');
 const previewSection = document.getElementById('preview-section');
 const pageCounter = document.getElementById('page-counter');
 const btnGenerate = document.getElementById('btn-generate');
 const btnClearAll = document.getElementById('btn-clear-all');
-const btnCamera = document.getElementById('btn-camera');
-const btnSnap = document.getElementById('btn-snap');
-const btnSwitchCam = document.getElementById('btn-switch-cam');
+const btnCamera   = document.getElementById('btn-camera');
+const btnSnap     = document.getElementById('btn-snap');
+const btnSwitchCam= document.getElementById('btn-switch-cam');
 const btnCloseCam = document.getElementById('btn-close-cam');
 const cameraModal = document.getElementById('camera-modal');
 const cameraVideo = document.getElementById('camera-video');
-const snapCanvas = document.getElementById('snap-canvas');
-const btnSendEmail = document.getElementById('btn-send-email');
-const btnMailto = document.getElementById('btn-mailto');
-const statusBar = document.getElementById('status-bar');
-const progressWrap = document.getElementById('progress-wrap');
+const snapCanvas  = document.getElementById('snap-canvas');
+const btnSendEmail= document.getElementById('btn-send-email');
+const btnMailto   = document.getElementById('btn-mailto');
+const statusBar   = document.getElementById('status-bar');
+const progressWrap= document.getElementById('progress-wrap');
 const progressBar = document.getElementById('progress-bar');
-const lightbox = document.getElementById('lightbox');
-const lbImg = document.getElementById('lb-img');
+const lightbox    = document.getElementById('lightbox');
+const lbImg       = document.getElementById('lb-img');
+const scanToggle  = document.getElementById('scan-toggle');
+const toggleSw    = document.getElementById('toggle-sw');
+const cropModal   = document.getElementById('crop-modal');
+const cropCanvas  = document.getElementById('crop-canvas');
+const cropInfo    = document.getElementById('crop-info');
+
+// ─── TOGGLE RECADRAGE ───
+scanToggle.addEventListener('click', () => {
+  autoScanEnabled = !autoScanEnabled;
+  toggleSw.classList.toggle('on', autoScanEnabled);
+  scanToggle.querySelector('.scan-toggle-label').textContent =
+    autoScanEnabled ? 'Recadrage automatique activé' : 'Recadrage automatique désactivé';
+});
 
 // ─── FILE INPUT ───
-fileInput.addEventListener('change', e => addFiles(Array.from(e.target.files)));
-
-// ─── DRAG & DROP on zone ───
+fileInput.addEventListener('change', e => processFiles(Array.from(e.target.files)));
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  addFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')));
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  processFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')));
 });
 
-function addFiles(files) {
+function processFiles(files) {
   files.forEach(file => {
     const reader = new FileReader();
-    reader.onload = e => addPage(e.target.result, file.name);
+    reader.onload = async e => {
+      const dataUrl = e.target.result;
+      if (autoScanEnabled && cvReady) {
+        await processAndAddPage(dataUrl, file.name);
+      } else {
+        addPage(dataUrl, file.name);
+      }
+    };
     reader.readAsDataURL(file);
   });
 }
 
-function addPage(dataUrl, name = `page-${pages.length+1}`) {
-  pages.push({ dataUrl, name });
+// ─── OPENCV PROCESSING ───
+async function processAndAddPage(dataUrl, name) {
+  // Ajouter d'abord comme placeholder
+  const idx = pages.length;
+  pages.push({ dataUrl, name, processing: true });
+  renderGrid();
+
+  try {
+    const result = await autoScanImage(dataUrl);
+    pages[idx] = { dataUrl: result.cropped, originalDataUrl: dataUrl, name, scanned: true };
+  } catch(e) {
+    console.warn('Recadrage auto échoué, image originale conservée:', e);
+    pages[idx] = { dataUrl, name, scanned: false };
+  }
   renderGrid();
 }
 
+function autoScanImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const src = cv.imread(imageToCanvas(img));
+        const corners = detectDocumentCorners(src, img.width, img.height);
+        if (!corners) { src.delete(); return reject(new Error('No document found')); }
+        const cropped = perspectiveTransform(src, corners, img.width, img.height);
+        const resultCanvas = document.createElement('canvas');
+        cv.imshow(resultCanvas, cropped);
+        src.delete(); cropped.delete();
+        resolve({ cropped: resultCanvas.toDataURL('image/jpeg', 0.95), corners });
+      } catch(e) { reject(e); }
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
+function imageToCanvas(img) {
+  const c = document.createElement('canvas');
+  // Redimensionner si trop grande pour les perfs
+  const MAX = 1600;
+  let w = img.width, h = img.height;
+  if (w > MAX || h > MAX) {
+    const r = Math.min(MAX/w, MAX/h);
+    w = Math.round(w*r); h = Math.round(h*r);
+  }
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(img, 0, 0, w, h);
+  return c;
+}
+
+function detectDocumentCorners(src, origW, origH) {
+  const gray   = new cv.Mat();
+  const blur   = new cv.Mat();
+  const edges  = new cv.Mat();
+  const kernel = cv.Mat.ones(5, 5, cv.CV_8U);
+  const dilated= new cv.Mat();
+  const contours  = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+
+  try {
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
+    cv.Canny(blur, edges, 50, 150);
+    cv.dilate(edges, dilated, kernel);
+    cv.findContours(dilated, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+    let bestContour = null;
+    let bestArea = 0;
+    const minArea = src.cols * src.rows * 0.05;
+
+    for (let i = 0; i < contours.size(); i++) {
+      const cnt = contours.get(i);
+      const area = cv.contourArea(cnt);
+      if (area < minArea) { cnt.delete(); continue; }
+
+      const peri = cv.arcLength(cnt, true);
+      const approx = new cv.Mat();
+      cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+
+      if (approx.rows === 4 && area > bestArea) {
+        bestArea = area;
+        if (bestContour) bestContour.delete();
+        bestContour = approx;
+      } else {
+        approx.delete();
+      }
+      cnt.delete();
+    }
+
+    if (!bestContour) return null;
+
+    // Extraire les 4 coins
+    const pts = [];
+    for (let i = 0; i < 4; i++) {
+      pts.push({ x: bestContour.data32S[i*2], y: bestContour.data32S[i*2+1] });
+    }
+    bestContour.delete();
+
+    // Ordonner: TL, TR, BR, BL
+    return orderCorners(pts);
+  } finally {
+    gray.delete(); blur.delete(); edges.delete();
+    kernel.delete(); dilated.delete();
+    contours.delete(); hierarchy.delete();
+  }
+}
+
+function orderCorners(pts) {
+  // Trier par somme x+y (TL = min, BR = max) et différence x-y (TR = min, BL = max)
+  const sorted = pts.slice().sort((a,b) => (a.x+a.y) - (b.x+b.y));
+  const tl = sorted[0];
+  const br = sorted[3];
+  const remaining = [sorted[1], sorted[2]];
+  remaining.sort((a,b) => (a.x-a.y) - (b.x-b.y));
+  const tr = remaining[0];
+  const bl = remaining[1];
+  return [tl, tr, br, bl];
+}
+
+function perspectiveTransform(src, corners, origW, origH) {
+  const [tl, tr, br, bl] = corners;
+
+  // Calcul de la largeur et hauteur de destination
+  const widthA  = Math.hypot(br.x-bl.x, br.y-bl.y);
+  const widthB  = Math.hypot(tr.x-tl.x, tr.y-tl.y);
+  const heightA = Math.hypot(tr.x-br.x, tr.y-br.y);
+  const heightB = Math.hypot(tl.x-bl.x, tl.y-bl.y);
+  const dstW = Math.round(Math.max(widthA, widthB));
+  const dstH = Math.round(Math.max(heightA, heightB));
+
+  const srcPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
+    tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y
+  ]);
+  const dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [
+    0, 0, dstW, 0, dstW, dstH, 0, dstH
+  ]);
+
+  const M = cv.getPerspectiveTransform(srcPts, dstPts);
+  const dst = new cv.Mat();
+  cv.warpPerspective(src, dst, M, new cv.Size(dstW, dstH));
+
+  srcPts.delete(); dstPts.delete(); M.delete();
+  return dst;
+}
+
+// ─── CROP EDITOR (ajustement manuel) ───
+function openCropEditor(pageIndex) {
+  cropPageIndex = pageIndex;
+  const page = pages[pageIndex];
+  cropOriginalDataUrl = page.originalDataUrl || page.dataUrl;
+
+  cropImg = new Image();
+  cropImg.onload = () => {
+    // Calcul de l'échelle pour afficher sur l'écran
+    const maxW = Math.min(window.innerWidth * 0.92, 700);
+    const maxH = window.innerHeight * 0.65;
+    cropScale = Math.min(maxW / cropImg.width, maxH / cropImg.height, 1);
+
+    cropCanvas.width  = Math.round(cropImg.width  * cropScale);
+    cropCanvas.height = Math.round(cropImg.height * cropScale);
+
+    // Initialiser les coins (auto ou rectangle plein)
+    if (cvReady) {
+      try {
+        const src = cv.imread(imageToCanvas(cropImg));
+        const detected = detectDocumentCorners(src, cropImg.width, cropImg.height);
+        src.delete();
+        if (detected) {
+          cropCorners = detected.map(p => ({ x: p.x * cropScale, y: p.y * cropScale }));
+        } else { setDefaultCorners(); }
+      } catch(e) { setDefaultCorners(); }
+    } else { setDefaultCorners(); }
+
+    drawCropCanvas();
+    cropModal.classList.add('open');
+  };
+  cropImg.src = cropOriginalDataUrl;
+}
+
+function setDefaultCorners() {
+  const w = cropCanvas.width, h = cropCanvas.height;
+  const pad = 20;
+  cropCorners = [
+    { x: pad,   y: pad   }, // TL
+    { x: w-pad, y: pad   }, // TR
+    { x: w-pad, y: h-pad }, // BR
+    { x: pad,   y: h-pad }, // BL
+  ];
+}
+
+function drawCropCanvas() {
+  const ctx = cropCanvas.getContext('2d');
+  ctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+  ctx.drawImage(cropImg, 0, 0, cropCanvas.width, cropCanvas.height);
+
+  // Overlay semi-transparent
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+
+  // Zone de recadrage (clip)
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cropCorners[0].x, cropCorners[0].y);
+  cropCorners.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(cropImg, 0, 0, cropCanvas.width, cropCanvas.height);
+  ctx.restore();
+
+  // Contour
+  ctx.beginPath();
+  ctx.moveTo(cropCorners[0].x, cropCorners[0].y);
+  cropCorners.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.closePath();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Lignes de grille (tiers)
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cropCorners[0].x, cropCorners[0].y);
+  cropCorners.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.closePath();
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  // horizontales
+  for (let i = 1; i < 3; i++) {
+    const t = i/3;
+    const l = lerp2(cropCorners[0], cropCorners[3], t);
+    const r = lerp2(cropCorners[1], cropCorners[2], t);
+    ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(r.x, r.y); ctx.stroke();
+  }
+  // verticales
+  for (let i = 1; i < 3; i++) {
+    const t = i/3;
+    const t_ = lerp2(cropCorners[0], cropCorners[1], t);
+    const b_ = lerp2(cropCorners[3], cropCorners[2], t);
+    ctx.beginPath(); ctx.moveTo(t_.x, t_.y); ctx.lineTo(b_.x, b_.y); ctx.stroke();
+  }
+  ctx.restore();
+
+  // Poignées
+  cropCorners.forEach((p, i) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 10, 0, Math.PI*2);
+    ctx.fillStyle = i === dragCornerIdx ? '#c8502a' : '#3a6b4a';
+    ctx.fill();
+    ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
+  });
+}
+
+function lerp2(a, b, t) { return { x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t }; }
+
+// Events canvas crop
+cropCanvas.addEventListener('mousedown', e => { dragCornerIdx = findNearestCorner(e); drawCropCanvas(); });
+cropCanvas.addEventListener('mousemove', e => {
+  if (dragCornerIdx < 0) return;
+  const r = cropCanvas.getBoundingClientRect();
+  cropCorners[dragCornerIdx] = {
+    x: Math.max(0, Math.min(cropCanvas.width,  e.clientX - r.left)),
+    y: Math.max(0, Math.min(cropCanvas.height, e.clientY - r.top))
+  };
+  drawCropCanvas();
+});
+cropCanvas.addEventListener('mouseup',   () => { dragCornerIdx = -1; });
+cropCanvas.addEventListener('mouseleave',() => { dragCornerIdx = -1; });
+
+// Touch
+cropCanvas.addEventListener('touchstart', e => { e.preventDefault(); dragCornerIdx = findNearestCorner(e.touches[0]); drawCropCanvas(); }, {passive:false});
+cropCanvas.addEventListener('touchmove',  e => {
+  e.preventDefault();
+  if (dragCornerIdx < 0) return;
+  const r = cropCanvas.getBoundingClientRect();
+  cropCorners[dragCornerIdx] = {
+    x: Math.max(0, Math.min(cropCanvas.width,  e.touches[0].clientX - r.left)),
+    y: Math.max(0, Math.min(cropCanvas.height, e.touches[0].clientY - r.top))
+  };
+  drawCropCanvas();
+}, {passive:false});
+cropCanvas.addEventListener('touchend',   () => { dragCornerIdx = -1; });
+
+function findNearestCorner(e) {
+  const r = cropCanvas.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  let best = -1, bestDist = 999;
+  cropCorners.forEach((p, i) => {
+    const d = Math.hypot(p.x - mx, p.y - my);
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  return bestDist < 30 ? best : -1;
+}
+
+document.getElementById('btn-crop-auto').addEventListener('click', () => {
+  if (!cvReady) return;
+  try {
+    const src = cv.imread(imageToCanvas(cropImg));
+    const detected = detectDocumentCorners(src, cropImg.width, cropImg.height);
+    src.delete();
+    if (detected) cropCorners = detected.map(p => ({ x: p.x*cropScale, y: p.y*cropScale }));
+    else setDefaultCorners();
+  } catch(e) { setDefaultCorners(); }
+  drawCropCanvas();
+});
+
+document.getElementById('btn-crop-confirm').addEventListener('click', async () => {
+  // Appliquer la transformation de perspective avec les coins manuels
+  const scaledCorners = cropCorners.map(p => ({ x: p.x/cropScale, y: p.y/cropScale }));
+  try {
+    const src = cv.imread(imageToCanvas(cropImg));
+    const ordered = orderCorners(scaledCorners);
+    const cropped = perspectiveTransform(src, ordered, cropImg.width, cropImg.height);
+    const resultCanvas = document.createElement('canvas');
+    cv.imshow(resultCanvas, cropped);
+    src.delete(); cropped.delete();
+    pages[cropPageIndex] = {
+      ...pages[cropPageIndex],
+      dataUrl: resultCanvas.toDataURL('image/jpeg', 0.95),
+      originalDataUrl: cropOriginalDataUrl,
+      scanned: true
+    };
+    renderGrid();
+  } catch(e) {
+    console.error(e);
+  }
+  cropModal.classList.remove('open');
+});
+
+document.getElementById('btn-crop-cancel').addEventListener('click', () => {
+  cropModal.classList.remove('open');
+});
+
+// ─── ADD PAGE ───
+function addPage(dataUrl, name = `page-${pages.length+1}`) {
+  pages.push({ dataUrl, name, scanned: false });
+  renderGrid();
+}
+
+// ─── RENDER GRID ───
 function renderGrid() {
   previewGrid.innerHTML = '';
   pages.forEach((page, i) => {
     const item = document.createElement('div');
-    item.className = 'preview-item';
+    item.className = 'preview-item' + (page.processing ? ' processing' : '');
     item.draggable = true;
     item.dataset.index = i;
 
@@ -607,19 +832,29 @@ function renderGrid() {
 
     const num = document.createElement('div');
     num.className = 'page-num';
-    num.textContent = `Page ${i+1}`;
+    num.textContent = page.processing ? 'Recadrage…' : `Page ${i+1}`;
 
     item.appendChild(img);
-    item.appendChild(del);
+    if (!page.processing) item.appendChild(del);
     item.appendChild(num);
 
-    // Click → lightbox
-    img.addEventListener('click', () => openLightbox(page.dataUrl));
+    if (page.scanned) {
+      const badge = document.createElement('div');
+      badge.className = 'scan-badge';
+      badge.textContent = '✔ Scan';
+      item.appendChild(badge);
+    }
+
+    // Click → crop editor ou lightbox
+    img.addEventListener('click', () => {
+      if (!page.processing && cvReady) openCropEditor(i);
+      else if (!page.processing) openLightbox(page.dataUrl);
+    });
 
     // Drag sort
-    item.addEventListener('dragstart', e => { dragSrcIndex = i; item.style.opacity = '0.4'; });
-    item.addEventListener('dragend', () => item.style.opacity = '1');
-    item.addEventListener('dragover', e => { e.preventDefault(); });
+    item.addEventListener('dragstart', () => { dragSrcIndex = i; item.style.opacity = '0.4'; });
+    item.addEventListener('dragend',   () => item.style.opacity = '1');
+    item.addEventListener('dragover',  e => e.preventDefault());
     item.addEventListener('drop', e => {
       e.preventDefault();
       if (dragSrcIndex !== null && dragSrcIndex !== i) {
@@ -636,7 +871,7 @@ function renderGrid() {
   const count = pages.length;
   const has = count > 0;
   previewSection.style.display = has ? 'block' : 'none';
-  pageCounter.textContent = `${count} page${count > 1 ? 's' : ''} ajoutée${count > 1 ? 's' : ''}`;
+  pageCounter.textContent = `${count} page${count>1?'s':''} · Cliquez sur une image pour ajuster le recadrage`;
   btnGenerate.disabled = !has;
   btnClearAll.disabled = !has;
   btnSendEmail.disabled = true;
@@ -644,11 +879,7 @@ function renderGrid() {
   generatedPdfBlob = null;
 }
 
-function removePage(i) {
-  pages.splice(i, 1);
-  renderGrid();
-}
-
+function removePage(i) { pages.splice(i, 1); renderGrid(); }
 btnClearAll.addEventListener('click', () => {
   if (confirm('Effacer toutes les pages ?')) { pages = []; renderGrid(); }
 });
@@ -659,42 +890,36 @@ btnCloseCam.addEventListener('click', closeCamera);
 btnSnap.addEventListener('click', snapPhoto);
 btnSwitchCam.addEventListener('click', switchCamera);
 
-async function openCamera() {
-  cameraModal.classList.add('open');
-  await startStream();
-}
-
+async function openCamera() { cameraModal.classList.add('open'); await startStream(); }
 async function startStream() {
-  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); }
+  if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
   try {
     cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: currentFacingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      video: { facingMode: currentFacingMode, width: {ideal:1920}, height: {ideal:1080} }
     });
     cameraVideo.srcObject = cameraStream;
-  } catch(e) {
-    alert('Impossible d\'accéder à la caméra : ' + e.message);
-    closeCamera();
-  }
+  } catch(e) { alert('Caméra inaccessible : ' + e.message); closeCamera(); }
 }
-
 async function switchCamera() {
   currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
   await startStream();
 }
-
-function snapPhoto() {
+async function snapPhoto() {
   snapCanvas.width = cameraVideo.videoWidth;
   snapCanvas.height = cameraVideo.videoHeight;
   snapCanvas.getContext('2d').drawImage(cameraVideo, 0, 0);
-  const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.92);
-  addPage(dataUrl, `capture-${pages.length+1}.jpg`);
-  // Flash effect
+  const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.95);
   const flash = document.createElement('div');
-  flash.style.cssText = 'position:fixed;inset:0;background:white;opacity:0.7;z-index:999;pointer-events:none;';
+  flash.style.cssText = 'position:fixed;inset:0;background:white;opacity:0.8;z-index:999;pointer-events:none;';
   document.body.appendChild(flash);
   setTimeout(() => flash.remove(), 150);
-}
 
+  if (autoScanEnabled && cvReady) {
+    await processAndAddPage(dataUrl, `capture-${pages.length+1}.jpg`);
+  } else {
+    addPage(dataUrl, `capture-${pages.length+1}.jpg`);
+  }
+}
 function closeCamera() {
   cameraModal.classList.remove('open');
   if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
@@ -702,21 +927,18 @@ function closeCamera() {
 
 // ─── GENERATE PDF ───
 btnGenerate.addEventListener('click', generatePDF);
-
 async function generatePDF() {
   if (!pages.length) return;
-
-  const fmt = document.getElementById('pdf-format').value;
+  const fmt    = document.getElementById('pdf-format').value;
   const orient = document.getElementById('pdf-orientation').value;
-  const quality = parseFloat(document.getElementById('pdf-quality').value);
-  const rawName = document.getElementById('pdf-name').value.trim() || 'scan-document';
-  generatedPdfName = rawName.replace(/\.pdf$/i, '') + '.pdf';
+  const quality= parseFloat(document.getElementById('pdf-quality').value);
+  const rawName= document.getElementById('pdf-name').value.trim() || 'scan-document';
+  generatedPdfName = rawName.replace(/\.pdf$/i,'') + '.pdf';
 
   btnGenerate.disabled = true;
   progressWrap.classList.add('visible');
   progressBar.style.width = '0%';
   setStatus('info', '⚙️ Génération du PDF en cours…');
-
   await sleep(50);
 
   try {
@@ -726,8 +948,10 @@ async function generatePDF() {
     for (let i = 0; i < pages.length; i++) {
       if (i > 0) doc.addPage();
       const img = await loadImage(pages[i].dataUrl);
-      const { x, y, w, h } = fitContain(img.width, img.height, pw, ph);
-      doc.addImage(pages[i].dataUrl, 'JPEG', x, y, w, h, undefined, 'FAST', 0);
+      // Image plein cadre (recadrée donc déjà propre)
+      const { x, y, w, h } = fitFill(img.width, img.height, pw, ph);
+      const jpeg = await toJpeg(pages[i].dataUrl, quality);
+      doc.addImage(jpeg, 'JPEG', x, y, w, h, undefined, 'FAST', 0);
       progressBar.style.width = `${Math.round(((i+1)/pages.length)*90)}%`;
       await sleep(10);
     }
@@ -735,19 +959,16 @@ async function generatePDF() {
     generatedPdfBlob = doc.output('blob');
     progressBar.style.width = '100%';
 
-    // Auto download
     const url = URL.createObjectURL(generatedPdfBlob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = generatedPdfName;
-    a.click();
+    a.href = url; a.download = generatedPdfName; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
 
     setStatus('success', `✔ PDF généré : ${generatedPdfName} (${pages.length} page${pages.length>1?'s':''})`);
     btnSendEmail.disabled = false;
     btnMailto.disabled = false;
   } catch(e) {
-    setStatus('error', '✕ Erreur lors de la génération : ' + e.message);
+    setStatus('error', '✕ Erreur : ' + e.message);
   }
 
   btnGenerate.disabled = false;
@@ -755,16 +976,30 @@ async function generatePDF() {
 }
 
 function getPageDimensions(fmt, orient) {
-  const dims = { a4: [210,297], letter: [216,279], a3: [297,420] };
+  const dims = { a4:[210,297], letter:[216,279], a3:[297,420] };
   let [w,h] = dims[fmt] || [210,297];
   if (orient === 'landscape') [w,h] = [h,w];
   return [w,h];
 }
 
-function fitContain(iw, ih, pw, ph) {
+// Fit sans marges (image recadrée = plein cadre)
+function fitFill(iw, ih, pw, ph) {
   const ratio = Math.min(pw/iw, ph/ih);
   const w = iw*ratio, h = ih*ratio;
   return { x:(pw-w)/2, y:(ph-h)/2, w, h };
+}
+
+function toJpeg(dataUrl, quality) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      res(c.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  });
 }
 
 function loadImage(src) {
@@ -775,75 +1010,49 @@ function loadImage(src) {
     img.src = src;
   });
 }
-
 function sleep(ms) { return new Promise(r => setTimeout(r,ms)); }
 
-// ─── SEND EMAIL ───
-btnSendEmail.addEventListener('click', sendViaEmailJS);
+// ─── EMAIL ───
+btnSendEmail.addEventListener('click', sendEmail);
 btnMailto.addEventListener('click', sendViaMailto);
 
-async function sendViaEmailJS() {
+async function sendEmail() {
   const email = document.getElementById('email-input').value.trim();
-  if (!email || !isValidEmail(email)) {
-    setStatus('error', '✕ Veuillez saisir une adresse email valide.');
-    return;
-  }
-  if (!generatedPdfBlob) {
-    setStatus('error', '✕ Générez d\'abord le PDF.');
-    return;
-  }
+  if (!email || !isValidEmail(email)) { setStatus('error','✕ Adresse email invalide.'); return; }
+  if (!generatedPdfBlob) { setStatus('error','✕ Générez d\'abord le PDF.'); return; }
 
-  // Convert blob to base64 for mailto fallback
-  const reader = new FileReader();
-  reader.onload = async function(e) {
-    // Try mailto with base64 (works only if small enough)
-    const subject = encodeURIComponent(document.getElementById('email-subject').value || 'Document scanné');
-    const body = encodeURIComponent(`Bonjour,\n\nVeuillez trouver ci-joint le document scanné "${generatedPdfName}".\n\nEnvoyé depuis ScanDoc.`);
-    const mailtoLink = `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`;
+  const subject = encodeURIComponent(document.getElementById('email-subject').value || 'Document scanné');
+  const body = encodeURIComponent(`Bonjour,\n\nVeuillez trouver ci-joint le document scanné "${generatedPdfName}".\n\nEnvoyé depuis Scanify.`);
 
-    // Also auto-download so user can attach manually if needed
-    const url = URL.createObjectURL(generatedPdfBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = generatedPdfName;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
+  // Re-télécharger le PDF
+  const url = URL.createObjectURL(generatedPdfBlob);
+  const a = document.createElement('a');
+  a.href = url; a.download = generatedPdfName; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
 
-    window.location.href = mailtoLink;
-    setStatus('success', `✔ Client mail ouvert pour ${email}. Le PDF a aussi été téléchargé pour que vous puissiez l'attacher manuellement si besoin.`);
-  };
-  reader.readAsDataURL(generatedPdfBlob);
+  window.location.href = `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`;
+  setStatus('success', `✔ Client mail ouvert pour ${email}. Attachez le PDF téléchargé.`);
 }
 
 function sendViaMailto() {
   const email = document.getElementById('email-input').value.trim();
-  if (!email || !isValidEmail(email)) {
-    setStatus('error', '✕ Veuillez saisir une adresse email valide.');
-    return;
-  }
+  if (!email || !isValidEmail(email)) { setStatus('error','✕ Adresse email invalide.'); return; }
   const subject = encodeURIComponent(document.getElementById('email-subject').value || 'Document scanné');
-  const body = encodeURIComponent(`Bonjour,\n\nVeuillez trouver ci-joint le document scanné "${generatedPdfName}".\n\nEnvoyé depuis ScanDoc.`);
+  const body = encodeURIComponent(`Bonjour,\n\nVeuillez trouver ci-joint le document scanné "${generatedPdfName}".\n\nEnvoyé depuis Scanify.`);
   window.location.href = `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`;
-  setStatus('info', `📬 Client mail ouvert. Attachez le fichier PDF téléchargé à votre message.`);
 }
 
 function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 
-// ─── STATUS BAR ───
 function setStatus(type, msg) {
   statusBar.className = type;
-  statusBar.innerHTML = type === 'info'
-    ? `<div class="spinner"></div> ${msg}`
-    : msg;
+  statusBar.innerHTML = type === 'info' ? `<div class="spinner"></div> ${msg}` : msg;
 }
 
 // ─── LIGHTBOX ───
-function openLightbox(src) {
-  lbImg.src = src;
-  lightbox.classList.add('open');
-}
+function openLightbox(src) { lbImg.src = src; lightbox.classList.add('open'); }
 document.getElementById('close-lb').addEventListener('click', () => lightbox.classList.remove('open'));
-lightbox.addEventListener('click', e => { if(e.target === lightbox) lightbox.classList.remove('open'); });
+lightbox.addEventListener('click', e => { if(e.target===lightbox) lightbox.classList.remove('open'); });
 </script>
 </body>
 </html>
